@@ -16,9 +16,22 @@ import categoryRoutes from "./routes/categoryRoutes.js";
 import productRoutes from "./routes/productRoutes.js";
 import cartRoutes from "./routes/cartRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
+import roleRoutes from "./routes/roleRoutes.js";
+import designationRoutes from "./routes/designationRoutes.js";
 import staffRoutes from "./routes/staffRoutes.js";
 import employerRoutes from "./routes/employerRoutes.js";
 import jobRoutes from "./routes/jobRoutes.js";
+import bannerRoutes from "./routes/bannerRoutes.js";
+import blogRoutes from "./routes/blogRoutes.js";
+import newsRoutes from "./routes/newsRoutes.js";
+import testimonialRoutes from "./routes/testimonialRoutes.js";
+import viewLogRoutes from "./routes/viewLogRoutes.js";
+import stateRoutes from "./routes/stateRoutes.js";
+import cityRoutes from "./routes/cityRoutes.js";
+import qualificationRoutes from "./routes/qualificationRoutes.js";
+import faqRoutes from "./routes/faqRoutes.js";
+import activityRoutes from "./routes/activityRoutes.js";
+import skillRoutes from "./routes/skillRoutes.js";
 
 dotenv.config({ path: ".env" });
 
@@ -49,14 +62,14 @@ if (cluster.isPrimary && isProduction) {
   app.use("/uploads", express.static(path.join(__dirname, "uploads")));
   app.use(helmet());
   // Rate limiter
-  // app.use(
-  //   rateLimit({
-  //     windowMs: 60 * 60 * 1000,
-  //     max: 100,
-  //     standardHeaders: true,
-  //     legacyHeaders: false,
-  //   })
-  // );
+  app.use(
+    rateLimit({
+      windowMs: 60 * 60 * 1000,
+      max: 1000,
+      standardHeaders: true,
+      legacyHeaders: false,
+    })
+  );
 
   // CORS
   const corsOptions = isProduction
@@ -75,16 +88,29 @@ if (cluster.isPrimary && isProduction) {
   });
 
   // API Routes
-  app.use("/api/web", webRoutes);
-  app.use("/api/auth", authRoutes);
-  app.use("/api/users", userRoutes);
-  app.use("/api/categories", categoryRoutes);
-  app.use("/api/products", productRoutes);
-  app.use("/api/carts", cartRoutes);
-  app.use("/api/orders", orderRoutes);
-  app.use("/api/staffs", staffRoutes);
-  app.use("/api/employers", employerRoutes);
-  app.use("/api/jobs", jobRoutes);
+  app.use("/web", webRoutes);
+  app.use("/auth", authRoutes);
+  app.use("/users", userRoutes);
+  app.use("/categories", categoryRoutes);
+  app.use("/products", productRoutes);
+  app.use("/carts", cartRoutes);
+  app.use("/orders", orderRoutes);
+  app.use("/roles", roleRoutes);
+  app.use("/designations", designationRoutes);
+  app.use("/staffs", staffRoutes);
+  app.use("/employers", employerRoutes);
+  app.use("/jobs", jobRoutes);
+  app.use("/banners", bannerRoutes);
+  app.use("/blogs", blogRoutes);
+  app.use("/news", newsRoutes);
+  app.use("/testimonials", testimonialRoutes);
+  app.use("/view-logs", viewLogRoutes);
+  app.use("/states", stateRoutes);
+  app.use("/cities", cityRoutes);
+  app.use("/skills", skillRoutes);
+  app.use("/qualifications", qualificationRoutes);
+  app.use("/faqs", faqRoutes);
+  app.use("/activity", activityRoutes);
 
   // Error Handler
   app.use((err, req, res, next) => {

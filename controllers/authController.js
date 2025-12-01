@@ -102,3 +102,66 @@ export const login = async (req, res) => {
     return errorResponse(res, "Error logging in user", 500);
   }
 };
+
+
+
+export const adminLogin = async (req, res) => {
+  if (!req.body) {
+    return res.status(400).json({ error: "Request body is missing" });
+  }
+
+  const { email, password } = req.body;
+  console.log("req.body", req.body)
+
+  if (!email || !password) {
+    return errorResponse(res, "Email and password are required", 400);
+  }
+
+  try {
+    const [rows] = await runQuery(
+      `SELECT adminID, name, email, password FROM admin WHERE email = ?`,
+      [email]
+    );
+
+    // ❌ If email not found
+    if (rows.length === 0) {
+      return errorResponse(res, "Invalid email or password", 401);
+    }
+
+    const admin = rows[0];
+    console.log("admin", admin)
+
+    const storedHash = admin.password.replace(/^\$2y/, '$2a');
+    const isMatch = await bcrypt.compare(password, storedHash);
+
+    // ❌ If password does not match
+    if (!isMatch) {
+      return errorResponse(res, "Passwords do not match", 401);
+    }
+
+    if (!process.env.JWT_SECRET) {
+      throw new Error("JWT_SECRET not configured");
+    }
+
+    const token = jwt.sign(
+      {
+        id: admin.adminID,
+        name: admin.name,
+        email: admin.email
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "1d" }
+    );
+
+    return successResponse(res, "Admin logged in successfully", {
+      adminID: admin.adminID,
+      name: admin.name,
+      email: admin.email,
+      token,
+    });
+
+  } catch (err) {
+    console.error("Login error:", err.message);
+    return errorResponse(res, "Error logging in admin", 500);
+  }
+};
