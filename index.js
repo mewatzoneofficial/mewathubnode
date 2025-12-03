@@ -13,6 +13,7 @@ import webRoutes from "./routes/webRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import categoryRoutes from "./routes/categoryRoutes.js";
+import subCategoryRoutes from "./routes/subCategoryRoutes.js";
 import productRoutes from "./routes/productRoutes.js";
 import cartRoutes from "./routes/cartRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
@@ -32,6 +33,7 @@ import qualificationRoutes from "./routes/qualificationRoutes.js";
 import faqRoutes from "./routes/faqRoutes.js";
 import activityRoutes from "./routes/activityRoutes.js";
 import skillRoutes from "./routes/skillRoutes.js";
+import dashboardRoutes from "./routes/dashboardRoutes.js";
 
 dotenv.config({ path: ".env" });
 
@@ -88,10 +90,12 @@ if (cluster.isPrimary && isProduction) {
   });
 
   // API Routes
+  app.use("/dashboard", dashboardRoutes);
   app.use("/web", webRoutes);
   app.use("/auth", authRoutes);
   app.use("/users", userRoutes);
   app.use("/categories", categoryRoutes);
+  app.use("/subcategories", subCategoryRoutes);
   app.use("/products", productRoutes);
   app.use("/carts", cartRoutes);
   app.use("/orders", orderRoutes);

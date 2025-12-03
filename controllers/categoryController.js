@@ -31,7 +31,7 @@ export const getAllRecords = async (req, res) => {
       LIMIT ? OFFSET ?;
     `;
 
-    const [results] = await runQuery(sqlQuery, [...params, limit, offset]);
+    const [responseData] = await runQuery(sqlQuery, [...params, limit, offset]);
 
     const countQuery = `SELECT COUNT(*) AS total FROM categories ${whereClause}`;
     const countResult = await runQuery(countQuery, params);
@@ -43,7 +43,7 @@ export const getAllRecords = async (req, res) => {
       limit,
       total,
       totalPages: Math.ceil(total / limit),
-      results,
+      responseData,
     });
   } catch (err) {
     console.error(err);

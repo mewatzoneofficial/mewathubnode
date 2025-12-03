@@ -1,12 +1,11 @@
 import express from "express";
 import {
   getAllRecords,
-  getRecords,
   createRecord,
   getRecordById,
   updateRecord,
   deleteRecord,
-} from "../controllers/roleController.js";
+} from "../controllers/cityController.js";
 
 const router = express.Router();
 

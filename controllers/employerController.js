@@ -58,6 +58,12 @@ export const getAllRecords = async (req, res) => {
     const [results] = await runQuery(sqlQuery, [...params, limit, offset]);
     const records = Array.isArray(results) ? results : [];
 
+    const baseImageUrl = process.env.IMAGE_BASE_URL;
+    const responseData = records.map((record) => ({
+      ...record,
+      logo: record.logo ? `${baseImageUrl}employer/${record.logo}` : null,
+    }));
+
     const countQuery = `
       SELECT COUNT(*) AS total
       FROM employer_user
@@ -72,7 +78,7 @@ export const getAllRecords = async (req, res) => {
       limit,
       total,
       totalPages: Math.ceil(total / limit),
-      records,
+      responseData,
     });
   } catch (err) {
     console.error(err);

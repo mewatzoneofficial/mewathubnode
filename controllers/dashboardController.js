@@ -52,23 +52,6 @@ export const getAllRecords = async (req, res) => {
 };
 
 
-export const getRecords = async (req, res) => {
-  try {
-      const db = await connectDB();
-      // const collection = await db.createCollection("users");
-      const result = await db.collection("users").find().toArray();
-    // const [result] = await runQuery("SELECT * FROM categories WHERE id = ?", [id]);
-    console.log('result', result)
-    if (!result.length) {
-      return errorResponse(res, "Category not found", 404);
-    }
-
-    return successResponse(res, "Category fetched successfully", result[0]);
-  } catch (err) {
-    return errorResponse(res, err.message, 500);
-  }
-};
-
 // Get category by ID
 export const getRecordById = async (req, res) => {
   const { id } = req.params;
@@ -88,86 +71,6 @@ export const getRecordById = async (req, res) => {
   }
 };
 
-// Create a new category
-export const createRecord = async (req, res) => {
-  const { name, description } = req.body || {}; 
-  console.log('req.body', req.body)
-  if (!name) {
-    return errorResponse(res, "Category name is required", 400);
-  }
-
-  const [existing] = await runQuery("SELECT * FROM categories WHERE name = ?", [name]);
-  if (existing.length > 0) { 
-    return errorResponse(res, "Category Already Exist", 409);
-  }
-
-  try {
-    const [result] = await runQuery(
-      `INSERT INTO categories (name, description) VALUES (?, ?)`,
-      [name, description || null]
-    );
-
-    return successResponse(res, "Category created successfully", { id: result.insertId, name: name });
-  } catch (err) {
-    console.error("Error creating category:", err);
-    return errorResponse(res, "Error creating category", 500);
-  }
-};
-
-// Update category by ID
-export const updateRecord = async (req, res) => {
-  const { id } = req.params;
-  const { name, description } = req.body || {}; 
-  console.log('req.body', req.body)
-
-  if (!id || isNaN(id)) {
-    return errorResponse(res, "Invalid category ID", 400);
-  }
-  if (!name) {
-    return errorResponse(res, "Category name is required", 400);
-  }
-
-  try {
-    const [existing] = await runQuery("SELECT * FROM categories WHERE id = ?", [id]);
-    if (!existing.length) {
-      return errorResponse(res, "Category not found", 404);
-    }
-
-    const [result] = await runQuery(
-      `UPDATE categories 
-       SET name = ?, description = ?, updated_at = NOW()
-       WHERE id = ?`,
-      [name || existing[0].name, description || existing[0].description, id]
-    );
-
-    if (result.affectedRows === 0) {
-      return errorResponse(res, "No changes made to the category", 400);
-    }
-
-    return successResponse(res, "Category updated successfully", { id: id, name: name, description:description });
-  } catch (err) {
-    return errorResponse(res, err.message, 500);
-  }
-};
-
-// Delete category by ID
-export const deleteRecord = async (req, res) => {
-  const { id } = req.params;
-  if (!id || isNaN(id)) {
-    return errorResponse(res, "Invalid category ID", 400);
-  }
-
-  try {
-    const [result] = await runQuery("DELETE FROM categories WHERE id = ?", [id]);
-    if (result.affectedRows === 0) {
-      return errorResponse(res, "Category not found", 404);
-    }
-
-    return successResponse(res, "Category deleted successfully");
-  } catch (err) {
-    return errorResponse(res, err.message, 500);
-  }
-};
 
 
 // Get admin profile by ID
@@ -283,26 +186,26 @@ export const updateProfile = async (req, res) => {
 // User chart data
 export const userChart = async (req, res) => {
   try {
-    const results = await runQuery(`
+    const sqlQuery =`
       SELECT 
         (SELECT COUNT(*) FROM faculity_users) AS total_faculity_users,
         (SELECT COUNT(*) FROM faculity_users WHERE DATE(created_at) = CURRENT_DATE) AS total_today_faculty_users,
         (SELECT COUNT(*) FROM faculity_users  WHERE experience = '0' OR salary = '0' OR university = '' OR job_function = '0') AS total_incomplete_faculty_users,
         (SELECT COUNT(*) FROM block_request  JOIN faculity_users ON faculity_users.faculityID = block_request.user_id) AS total_blocked_faculty_users
-    `);
+    `;
 
-    if (!results.length) return sendError(res, "No data found", 404);
+  const [results] = await runQuery(sqlQuery);
 
-    return sendSuccess(res, results[0]);
+    return successResponse(res, "Data Found successfully", { results: results[0] });
   } catch (err) {
-    return sendError(res, err.message, 500);
+    return errorResponse(res, err.message, 500);
   }
 };
 
 // Job chart data
 export const jobChart = async (req, res) => {
   try {
-    const results = await runQuery(`
+    const sqlQuery =`
       SELECT 
         (SELECT COUNT(*) FROM jobs) AS total_jobs,
         (SELECT COUNT(*) FROM applied_jobs) AS total_applied_jobs,
@@ -310,13 +213,12 @@ export const jobChart = async (req, res) => {
         (SELECT COUNT(*) FROM applied_jobs aj  JOIN jobs j ON aj.jobID = j.jobID 
          WHERE aj.status = 'Rejected') AS total_rejected_jobs,
         (SELECT COUNT(*) FROM jobs WHERE approval_status = 1) AS total_approval_jobs
-    `);
+    `;
 
-    if (!results.length) return sendError(res, "No data found", 404);
-
-    return sendSuccess(res, results[0]);
+    const [results] = await runQuery(sqlQuery);
+    return successResponse(res, "Data Found successfully", results[0]);
   } catch (err) {
-    return sendError(res, err.message, 500);
+    return errorResponse(res, err.message, 500);
   }
 };
 
@@ -383,11 +285,11 @@ export const employerJobChart = async (req, res) => {
 
     const results = await runQuery(query);
 
-    if (!results.length) return sendError(res, "No data found", 404);
+    if (!results.length) return errorResponse(res, "No data found", 404);
 
-    return sendSuccess(res, results);
+    return successResponse(res, "Data Found successfully", { results: results[0] });
   } catch (err) {
     console.error(err);
-    return sendError(res, err.message, 500);
+    return errorResponse(res, err.message, 500);
   }
 };

@@ -1,7 +1,7 @@
 import connectDB from "../config/mdb.js";
 import { runQuery, successResponse, errorResponse } from "../utils/commonFunctions.js";
 
-// Get all user_view_log
+// Get all tbl_functions
 export const getAllRecords = async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
@@ -24,25 +24,25 @@ export const getAllRecords = async (req, res) => {
     const whereClause = whereClauses.length ? "WHERE " + whereClauses.join(" AND ") : "";
 
     const sqlQuery = `
-      SELECT * FROM user_view_log
+      SELECT * FROM tbl_functions
       ${whereClause}
       ORDER BY id DESC
       LIMIT ? OFFSET ?;
     `;
 
-    const [results] = await runQuery(sqlQuery, [...params, limit, offset]);
+    const [responseData] = await runQuery(sqlQuery, [...params, limit, offset]);
 
-    const countQuery = `SELECT COUNT(*) AS total FROM user_view_log ${whereClause}`;
+    const countQuery = `SELECT COUNT(*) AS total FROM tbl_functions ${whereClause}`;
     const countResult = await runQuery(countQuery, params);
     const countRow = Array.isArray(countResult[0]) ? countResult[0][0] : countResult[0];
     const total = countRow?.total || 0;
 
-    return successResponse(res, "user_view_log fetched successfully", {
+    return successResponse(res, "tbl_functions fetched successfully", {
       page,
       limit,
       total,
       totalPages: Math.ceil(total / limit),
-      results,
+      responseData,
     });
   } catch (err) {
     console.error(err);
@@ -56,7 +56,7 @@ export const getRecords = async (req, res) => {
       const db = await connectDB();
       // const collection = await db.createCollection("users");
       const result = await db.collection("users").find().toArray();
-    // const [result] = await runQuery("SELECT * FROM categories WHERE id = ?", [id]);
+    // const [result] = await runQuery("SELECT * FROM tbl_functions WHERE id = ?", [id]);
     console.log('result', result)
     if (!result.length) {
       return errorResponse(res, "Category not found", 404);
@@ -76,7 +76,7 @@ export const getRecordById = async (req, res) => {
   }
 
   try {
-    const [result] = await runQuery("SELECT * FROM categories WHERE id = ?", [id]);
+    const [result] = await runQuery("SELECT * FROM tbl_functions WHERE id = ?", [id]);
     if (!result.length) {
       return errorResponse(res, "Category not found", 404);
     }
@@ -95,14 +95,14 @@ export const createRecord = async (req, res) => {
     return errorResponse(res, "Category name is required", 400);
   }
 
-  const [existing] = await runQuery("SELECT * FROM categories WHERE name = ?", [name]);
+  const [existing] = await runQuery("SELECT * FROM tbl_functions WHERE name = ?", [name]);
   if (existing.length > 0) { 
     return errorResponse(res, "Category Already Exist", 409);
   }
 
   try {
     const [result] = await runQuery(
-      `INSERT INTO categories (name, description) VALUES (?, ?)`,
+      `INSERT INTO tbl_functions (name, description) VALUES (?, ?)`,
       [name, description || null]
     );
 
@@ -127,13 +127,13 @@ export const updateRecord = async (req, res) => {
   }
 
   try {
-    const [existing] = await runQuery("SELECT * FROM categories WHERE id = ?", [id]);
+    const [existing] = await runQuery("SELECT * FROM tbl_functions WHERE id = ?", [id]);
     if (!existing.length) {
       return errorResponse(res, "Category not found", 404);
     }
 
     const [result] = await runQuery(
-      `UPDATE categories 
+      `UPDATE tbl_functions 
        SET name = ?, description = ?, updated_at = NOW()
        WHERE id = ?`,
       [name || existing[0].name, description || existing[0].description, id]
@@ -157,7 +157,7 @@ export const deleteRecord = async (req, res) => {
   }
 
   try {
-    const [result] = await runQuery("DELETE FROM categories WHERE id = ?", [id]);
+    const [result] = await runQuery("DELETE FROM tbl_functions WHERE id = ?", [id]);
     if (result.affectedRows === 0) {
       return errorResponse(res, "Category not found", 404);
     }

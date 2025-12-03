@@ -4,7 +4,7 @@ import {
   errorResponse,
 } from "../utils/commonFunctions.js";
 
-// Get all products
+// Get all blogs
 export const getAllRecords = async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
@@ -13,57 +13,54 @@ export const getAllRecords = async (req, res) => {
     const trimOrNull = (val) => (val?.trim() ? val.trim() : null);
 
     const filters = {
-      name: trimOrNull(req.query.name),
-      price: trimOrNull(req.query.price),
-      category_id: req.query.category_id
-        ? parseInt(req.query.category_id, 10)
-        : null,
+      title: trimOrNull(req.query.title),
+      category: trimOrNull(req.query.category),
+      author: trimOrNull(req.query.author),
     };
 
     const whereClauses = [];
     const params = [];
 
-    if (filters.name) {
-      whereClauses.push("products.name LIKE ?");
-      params.push(`%${filters.name}%`);
+    if (filters.title) {
+      whereClauses.push("blog.title LIKE ?");
+      params.push(`%${filters.title}%`);
     }
 
-    if (filters.price) {
-      whereClauses.push("products.price LIKE ?");
-      params.push(`%${filters.price}%`);
+    if (filters.category) {
+      whereClauses.push("blog.category LIKE ?");
+      params.push(`%${filters.category}%`);
     }
 
-    if (filters.category_id) {
-      whereClauses.push("products.category_id = ?");
-      params.push(filters.category_id);
+    if (filters.author) {
+      whereClauses.push("blog.author LIKE ?");
+      params.push(`%${filters.author}%`);
     }
-
 
     const whereClause = whereClauses.length
       ? "WHERE " + whereClauses.join(" AND ")
       : "";
 
     const sqlQuery = `
-      SELECT products.id, products.category_id, products.name, products.description, products.price, products.discount_price,
-             products.qty, products.image, products.created_at, categories.name as cat_name 
-        FROM products
-        JOIN categories ON products.category_id = categories.id
-        ${whereClause}
-        ORDER BY id DESC
-        LIMIT ? OFFSET ?;
+      SELECT 
+        blogid, featured, category, title, slug, blogimage, image_thumb,
+        short_description, long_description, author, likes,
+        meta_title, meta_description, meta_keywords,
+        og_title, og_description, og_keywords,
+        created_at, updated_at
+      FROM blog
+      ${whereClause}
+      ORDER BY blogid DESC
+      LIMIT ? OFFSET ?;
     `;
 
     const [results] = await runQuery(sqlQuery, [...params, limit, offset]);
 
-    // Ensure results is never null, default to empty array
-    const products = Array.isArray(results) ? results : [];
+    const blogs = Array.isArray(results) ? results : [];
 
-     // Corrected COUNT query with JOIN
     const countQuery = `
       SELECT COUNT(*) AS total 
-        FROM products
-        LEFT JOIN categories ON products.category_id = categories.id
-        ${whereClause}
+      FROM blog
+      ${whereClause}
     `;
     const countResult = await runQuery(countQuery, params);
     const countRow = Array.isArray(countResult[0])
@@ -73,12 +70,15 @@ export const getAllRecords = async (req, res) => {
 
     const baseImageUrl = process.env.IMAGE_BASE_URL;
 
-    const responseData = products.map((product) => ({
-      ...product,
-      image: product.image ? `${baseImageUrl}products/${product.image}` : null,
+    const responseData = blogs.map((blog) => ({
+      ...blog,
+      blogimage: blog.blogimage ? `${baseImageUrl}blog/${blog.blogimage}` : null,
+      image_thumb: blog.image_thumb
+        ? `${baseImageUrl}blog/thumb/${blog.image_thumb}`
+        : null,
     }));
 
-    return successResponse(res, "Products fetched successfully", {
+    return successResponse(res, "Blogs fetched successfully", {
       page,
       limit,
       total,
@@ -91,149 +91,211 @@ export const getAllRecords = async (req, res) => {
   }
 };
 
-// Get product by ID
+// Get blog by ID
 export const getRecordById = async (req, res) => {
   const { id } = req.params;
 
   if (!id || isNaN(id)) {
-    return errorResponse(res, "Invalid product ID", 400);
+    return errorResponse(res, "Invalid blog ID", 400);
   }
 
   try {
-    const [result] = await runQuery("SELECT * FROM products WHERE id = ?", [
+    const [result] = await runQuery("SELECT * FROM blog WHERE blogid = ?", [
       id,
     ]);
 
     if (!result.length) {
-      return errorResponse(res, "Product not found", 404);
+      return errorResponse(res, "Blog not found", 404);
     }
 
     const baseImageUrl = process.env.IMAGE_BASE_URL;
-    const product = result[0];
+    const blog = result[0];
     const responseData = {
-      ...product,
-      image: product.image ? `${baseImageUrl}products/${product.image}` : null,
+      ...blog,
+      blogimage: blog.blogimage
+        ? `${baseImageUrl}blog/${blog.blogimage}`
+        : null,
+      image_thumb: blog.image_thumb
+        ? `${baseImageUrl}blog/thumb/${blog.image_thumb}`
+        : null,
     };
-    return successResponse(res, "Product fetched successfully", responseData);
+
+    return successResponse(res, "Blog fetched successfully", responseData);
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }
 };
 
-// Create a new product
+// Create a new blog
 export const createRecord = async (req, res) => {
-  const { category_id, name, description, price, discount_price, qty } =
-    req.body;
+  const {
+    featured,
+    category,
+    title,
+    slug,
+    short_description,
+    long_description,
+    author,
+    likes,
+    meta_title,
+    meta_description,
+    meta_keywords,
+    og_title,
+    og_description,
+    og_keywords,
+  } = req.body;
 
-  const image = req.file ? req.file.filename : null;
+  const blogimage = req.file ? req.file.filename : null;
 
-  if (!name || !price || !category_id) {
-    return errorResponse(res, "Category ID, name, and price are required", 400);
+  if (!title || !slug) {
+    return errorResponse(res, "Title and slug are required", 400);
   }
 
-  const [existing] = await runQuery("SELECT * FROM products WHERE name = ?", [
-    name,
+  const [existing] = await runQuery("SELECT * FROM blog WHERE slug = ?", [
+    slug,
   ]);
   if (existing.length > 0) {
-    return errorResponse(res, "Product Already Exist", 409);
+    return errorResponse(res, "Slug already exists", 409);
   }
 
   try {
     const [result] = await runQuery(
-      `INSERT INTO products 
-       (category_id, name, description, price, discount_price, qty, image)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO blog 
+       (featured, category, title, slug, blogimage, short_description, long_description, author, likes, 
+        meta_title, meta_description, meta_keywords, og_title, og_description, og_keywords)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        category_id,
-        name,
-        description || null,
-        price,
-        discount_price || 0,
-        qty || 0,
-        image || null,
+        featured || 0,
+        category || null,
+        title,
+        slug,
+        blogimage || null,
+        short_description || null,
+        long_description || null,
+        author || null,
+        likes || 0,
+        meta_title || null,
+        meta_description || null,
+        meta_keywords || null,
+        og_title || null,
+        og_description || null,
+        og_keywords || null,
       ]
     );
 
-    return successResponse(res, "Product created successfully", {
+    return successResponse(res, "Blog created successfully", {
       id: result.insertId,
-      name: name,
-      price: price,
+      title,
+      slug,
     });
   } catch (err) {
-    console.error("Error creating product:", err);
-    return errorResponse(res, "Error creating product", 500);
+    console.error("Error creating blog:", err);
+    return errorResponse(res, "Error creating blog", 500);
   }
 };
 
-// Update product by ID
+// Update blog
 export const updateRecord = async (req, res) => {
   const { id } = req.params;
-  const { category_id, name, description, price, discount_price, qty } =
-    req.body || {};
-  const image = req.file ? req.file.filename : null;
+
+  const {
+    featured,
+    category,
+    title,
+    slug,
+    short_description,
+    long_description,
+    author,
+    likes,
+    meta_title,
+    meta_description,
+    meta_keywords,
+    og_title,
+    og_description,
+    og_keywords,
+  } = req.body;
+
+  const blogimage = req.file ? req.file.filename : null;
 
   if (!id || isNaN(id)) {
-    return errorResponse(res, "Invalid product ID", 400);
+    return errorResponse(res, "Invalid blog ID", 400);
   }
 
   try {
-    const [existing] = await runQuery("SELECT * FROM products WHERE id = ?", [
+    const [existing] = await runQuery("SELECT * FROM blog WHERE blogid = ?", [
       id,
     ]);
     if (!existing.length) {
-      return errorResponse(res, "Product not found", 404);
+      return errorResponse(res, "Blog not found", 404);
     }
 
     const [result] = await runQuery(
-      `UPDATE products SET 
-        category_id = ?, 
-        name = ?, 
-        description = ?, 
-        price = ?, 
-        discount_price = ?, 
-        qty = ?, 
-        image = COALESCE(?, image), 
+      `UPDATE blog SET 
+        featured = ?, 
+        category = ?, 
+        title = ?, 
+        slug = ?, 
+        short_description = ?, 
+        long_description = ?, 
+        author = ?, 
+        likes = ?, 
+        meta_title = ?, 
+        meta_description = ?, 
+        meta_keywords = ?, 
+        og_title = ?, 
+        og_description = ?, 
+        og_keywords = ?, 
+        blogimage = COALESCE(?, blogimage), 
         updated_at = NOW()
-      WHERE id = ?`,
+      WHERE blogid = ?`,
       [
-        category_id,
-        name,
-        description || null,
-        price,
-        discount_price || 0,
-        qty || 0,
-        image,
+        featured || 0,
+        category || null,
+        title,
+        slug,
+        short_description || null,
+        long_description || null,
+        author || null,
+        likes || 0,
+        meta_title || null,
+        meta_description || null,
+        meta_keywords || null,
+        og_title || null,
+        og_description || null,
+        og_keywords || null,
+        blogimage,
         id,
       ]
     );
 
     if (result.affectedRows === 0) {
-      return errorResponse(res, "No changes made to the product", 400);
+      return errorResponse(res, "No changes made to the blog", 400);
     }
-    return successResponse(res, "Product updated successfully", {
-      id: id,
-      name: name,
-      price: price,
+
+    return successResponse(res, "Blog updated successfully", {
+      id,
+      title,
+      slug,
     });
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }
 };
 
-// Delete product by ID
+// Delete blog
 export const deleteRecord = async (req, res) => {
   const { id } = req.params;
   if (!id || isNaN(id)) {
-    return errorResponse(res, "Invalid product ID", 400);
+    return errorResponse(res, "Invalid blog ID", 400);
   }
 
   try {
-    const [result] = await runQuery("DELETE FROM products WHERE id = ?", [id]);
+    const [result] = await runQuery("DELETE FROM blog WHERE blogid = ?", [id]);
     if (result.affectedRows === 0) {
-      return errorResponse(res, "Product not found", 404);
+      return errorResponse(res, "Blog not found", 404);
     }
 
-    return successResponse(res, "Product deleted successfully");
+    return successResponse(res, "Blog deleted successfully");
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }

@@ -5,7 +5,7 @@ import {
   getRecordById,
   updateRecord,
   deleteRecord,
-} from "../controllers/stateController.js";
+} from "../controllers/subCategoryController.js";
 
 const router = express.Router();
 

@@ -1,20 +1,30 @@
-import { runQuery, successResponse, errorResponse } from "../utils/commonFunctions.js";
-import bcrypt from "bcryptjs";
+import {
+  runQuery,
+  successResponse,
+  errorResponse,
+} from "../utils/commonFunctions.js";
 
-// Get all users
+// =============================
+// Get all faculty users
+// =============================
 export const getAllRecords = async (req, res) => {
   try {
-    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
-    const limit = Math.max(parseInt(req.query.limit, 10) || 10, 1);
+    // Parse pagination params safely
+    const page = Number(req.query.page) > 0 ? Number(req.query.page) : 1;
+    const limit = Number(req.query.limit) > 0 ? Number(req.query.limit) : 10;
     const offset = (page - 1) * limit;
+
+    // Helper to trim or nullify empty strings
     const trimOrNull = (val) => (val?.trim() ? val.trim() : null);
 
+    // Filters
     const filters = {
       name: trimOrNull(req.query.name),
       email: trimOrNull(req.query.email),
-      phone: trimOrNull(req.query.phone)
+      mobile: trimOrNull(req.query.mobile)
     };
 
+    // Build WHERE clause dynamically
     const whereClauses = [];
     const params = [];
 
@@ -22,41 +32,45 @@ export const getAllRecords = async (req, res) => {
       whereClauses.push("name LIKE ?");
       params.push(`%${filters.name}%`);
     }
-
     if (filters.email) {
       whereClauses.push("email LIKE ?");
       params.push(`%${filters.email}%`);
     }
-
-    // if (filters.phone) {
-    //   whereClauses.push("phone LIKE ?");
-    //   params.push(`%${filters.phone}%`);
-    // }
-
+    if (filters.mobile) {
+      whereClauses.push("mobile LIKE ?");
+      params.push(`%${filters.mobile}%`);
+    }
     const whereClause = whereClauses.length ? "WHERE " + whereClauses.join(" AND ") : "";
 
+    // Fetch paginated results
     const sqlQuery = `
-      SELECT * FROM users
+      SELECT *
+      FROM faculity_users
       ${whereClause}
-      ORDER BY id DESC
+      ORDER BY faculityID DESC
       LIMIT ? OFFSET ?;
     `;
-
     const [results] = await runQuery(sqlQuery, [...params, limit, offset]);
+    const records = Array.isArray(results) ? results : [];
 
-    const countQuery = `SELECT COUNT(*) AS total FROM users ${whereClause}`;
-    const countResult = await runQuery(countQuery, params);
-    const countRow = Array.isArray(countResult[0]) ? countResult[0][0] : countResult[0];
-    const total = countRow?.total || 0;
+    // Fetch total count for pagination
+    const countQuery = `
+      SELECT COUNT(*) AS total
+      FROM faculity_users
+      ${whereClause};
+    `;
+    const [countResult] = await runQuery(countQuery, params);
+    const totalRow = Array.isArray(countResult) ? countResult[0] : countResult;
+    const total = totalRow?.total || 0;
 
+    // Build response data with image URLs
     const baseImageUrl = process.env.IMAGE_BASE_URL;
-
-    const responseData = results.map((user) => ({
-      ...user,
-      image: user.image ? `${baseImageUrl}uploads/users/${user.image}` : null,
+    const responseData = records.map((record) => ({
+      ...record,
+      logo: record.logo ? `${baseImageUrl}users/${record.logo}` : null,
     }));
 
-    return successResponse(res, "Users fetched successfully", {
+    return successResponse(res, "Faculty users fetched successfully", {
       page,
       limit,
       total,
@@ -70,19 +84,21 @@ export const getAllRecords = async (req, res) => {
 };
 
 
-// Get user by ID
+// =============================
+// Get faculty user by ID
+// =============================
 export const getRecordById = async (req, res) => {
   const { id } = req.params;
 
   if (!id || isNaN(id)) {
-    return errorResponse(res, "Invalid user ID", 400);
+    return errorResponse(res, "Invalid faculty ID", 400);
   }
 
   try {
-    const [result] = await runQuery("SELECT * FROM users WHERE id = ?", [id]);
+    const [result] = await runQuery("SELECT * FROM faculity_users WHERE faculityID = ?", [id]);
 
     if (!result.length) {
-      return errorResponse(res, "User not found", 404);
+      return errorResponse(res, "Faculty user not found", 404);
     }
 
     const baseImageUrl = process.env.IMAGE_BASE_URL;
@@ -90,157 +106,113 @@ export const getRecordById = async (req, res) => {
 
     const responseData = {
       ...user,
-      image: user.image
-        ? `${baseImageUrl}uploads/users/${user.image}`
-        : null,
+      image: user.image ? `${baseImageUrl}faculty/${user.image}` : null,
     };
-    return successResponse(res, "User fetched successfully", responseData);
+
+    return successResponse(res, "Faculty user fetched successfully", responseData);
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }
 };
 
-
-// Create a new user
+// =============================
+// Create a new faculty user
+// =============================
 export const createRecord = async (req, res) => {
-  const {
-    name,
-    email,
-    phone,
-    password,
-    description,
-    age,
-    gender,
-    latitude,
-    longitude
-  } = req.body;
-
+  const { name, email, mobile, status } = req.body;
   const image = req.file ? req.file.filename : null;
 
-  if (!name || !email || !password) {
-    return errorResponse(res, "Name, email, and password are required", 400);
+  if (!name || !email || !mobile) {
+    return errorResponse(res, "Name, email, and mobile are required", 400);
   }
 
-  const [existing] = await runQuery("SELECT * FROM users WHERE email = ?", [email]);
-  if (existing.length > 0) { 
-    return errorResponse(res, "User already exists", 409);
+  const [existing] = await runQuery(
+    "SELECT * FROM faculity_users WHERE email = ? OR mobile = ?",
+    [email, mobile]
+  );
+
+  if (existing.length > 0) {
+    return errorResponse(res, "User with this email or mobile already exists", 409);
   }
 
   try {
-    const hashedPassword = await bcrypt.hash(password, 10);
-
     const [result] = await runQuery(
-      `INSERT INTO users 
-       (name, email, phone, password, image, description, age, gender, latitude, longitude)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        name,
-        email,
-        phone || null,
-        hashedPassword,
-        image || null,
-        description || null,
-        age || null,
-        gender || null,
-        latitude || null,
-        longitude || null
-      ]
+      `INSERT INTO faculity_users 
+        (name, email, mobile, status, image, created_at)
+       VALUES (?, ?, ?, ?, ?, NOW())`,
+      [name, email, mobile, status || 1, image || null]
     );
 
-    return successResponse(res, "User created successfully", { id: result.insertId, name, email });
+    return successResponse(res, "Faculty user created successfully", {
+      faculityID: result.insertId,
+      name,
+      email,
+    });
   } catch (err) {
-    console.error("Error creating user:", err);
-    return errorResponse(res, "Error creating user", 500);
+    console.error("Error creating faculty user:", err);
+    return errorResponse(res, "Error creating faculty user", 500);
   }
 };
 
-
-// Update user by ID
+// =============================
+// Update faculty user by ID
+// =============================
 export const updateRecord = async (req, res) => {
   const { id } = req.params;
-  const {
-    name,
-    email,
-    phone,
-    password,
-    description,
-    age,
-    gender,
-    latitude,
-    longitude
-  } = req.body || {};
+  const { name, email, mobile, status } = req.body;
 
   const image = req.file ? req.file.filename : null;
 
   if (!id || isNaN(id)) {
-    return errorResponse(res, "Invalid user ID", 400);
+    return errorResponse(res, "Invalid faculty ID", 400);
   }
 
   try {
-    const [existing] = await runQuery("SELECT * FROM users WHERE id = ?", [id]);
+    const [existing] = await runQuery("SELECT * FROM faculity_users WHERE faculityID = ?", [id]);
     if (!existing.length) {
-      return errorResponse(res, "User not found", 404);
-    }
-
-    let finalPassword = existing[0].password;
-
-    if (password) {
-      finalPassword = await bcrypt.hash(password, 10);
+      return errorResponse(res, "Faculty user not found", 404);
     }
 
     const [result] = await runQuery(
-      `UPDATE users SET 
+      `UPDATE faculity_users SET 
         name = ?, 
         email = ?, 
-        phone = ?, 
-        password = ?, 
+        mobile = ?, 
+        status = ?, 
         image = COALESCE(?, image), 
-        description = ?, 
-        age = ?, 
-        gender = ?, 
-        latitude = ?, 
-        longitude = ?, 
         updated_at = NOW()
-      WHERE id = ?`,
-      [
-        name,
-        email,
-        phone,
-        finalPassword,
-        image,
-        description,
-        age,
-        gender,
-        latitude,
-        longitude,
-        id,
-      ]
+      WHERE faculityID = ?`,
+      [name, email, mobile, status || 1, image, id]
     );
 
     if (result.affectedRows === 0) {
       return errorResponse(res, "No changes made to the user", 400);
     }
-    return successResponse(res, "User updated successfully", { id, name, email });
+
+    return successResponse(res, "Faculty user updated successfully", { faculityID: id });
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }
 };
 
-
-// Delete user by ID
+// =============================
+// Delete faculty user by ID
+// =============================
 export const deleteRecord = async (req, res) => {
   const { id } = req.params;
+
   if (!id || isNaN(id)) {
-    return errorResponse(res, "Invalid user ID", 400);
+    return errorResponse(res, "Invalid faculty ID", 400);
   }
 
   try {
-    const [result] = await runQuery("DELETE FROM users WHERE id = ?", [id]);
+    const [result] = await runQuery("DELETE FROM faculity_users WHERE faculityID = ?", [id]);
+
     if (result.affectedRows === 0) {
-      return errorResponse(res, "User not found", 404);
+      return errorResponse(res, "Faculty user not found", 404);
     }
 
-    return successResponse(res, "User deleted successfully");
+    return successResponse(res, "Faculty user deleted successfully");
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }
