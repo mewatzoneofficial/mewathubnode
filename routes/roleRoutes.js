@@ -1,7 +1,6 @@
 import express from "express";
 import {
   getAllRecords,
-  getRecords,
   createRecord,
   getRecordById,
   updateRecord,

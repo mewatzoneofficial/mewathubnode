@@ -34,6 +34,11 @@ import faqRoutes from "./routes/faqRoutes.js";
 import activityRoutes from "./routes/activityRoutes.js";
 import skillRoutes from "./routes/skillRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
+import feedRoutes from "./routes/feedRoutes.js";
+import tagRoutes from "./routes/tagRoutes.js";
+import stickyNoteRoutes from "./routes/stickyNoteRoutes.js";
+import packageRoutes from "./routes/packageRoutes.js";
+import moduleRoutes from "./routes/moduleRoutes.js";
 
 dotenv.config({ path: ".env" });
 
@@ -115,6 +120,11 @@ if (cluster.isPrimary && isProduction) {
   app.use("/qualifications", qualificationRoutes);
   app.use("/faqs", faqRoutes);
   app.use("/activity", activityRoutes);
+  app.use("/feeds", feedRoutes);
+  app.use("/tags", tagRoutes);
+  app.use("/stickynotes", stickyNoteRoutes);
+  app.use("/packages", packageRoutes);
+  app.use("/modules", moduleRoutes);
 
   // Error Handler
   app.use((err, req, res, next) => {

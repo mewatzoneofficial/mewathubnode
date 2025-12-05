@@ -1,7 +1,6 @@
-import connectDB from "../config/mdb.js";
 import { runQuery, successResponse, errorResponse } from "../utils/commonFunctions.js";
 
-// Get all categories
+// Get all states
 export const getAllRecords = async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
@@ -24,21 +23,20 @@ export const getAllRecords = async (req, res) => {
     const whereClause = whereClauses.length ? "WHERE " + whereClauses.join(" AND ") : "";
 
     const sqlQuery = `
-      SELECT *
-      FROM skills
+      SELECT * FROM users_packages
       ${whereClause}
-      ORDER BY id DESC
+      ORDER BY packID DESC
       LIMIT ? OFFSET ?;
     `;
 
     const [responseData] = await runQuery(sqlQuery, [...params, limit, offset]);
 
-    const countQuery = `SELECT COUNT(*) AS total FROM skills ${whereClause}`;
+    const countQuery = `SELECT COUNT(*) AS total FROM users_packages ${whereClause}`;
     const countResult = await runQuery(countQuery, params);
     const countRow = Array.isArray(countResult[0]) ? countResult[0][0] : countResult[0];
     const total = countRow?.total || 0;
 
-    return successResponse(res, "skills fetched successfully", {
+    return successResponse(res, "states fetched successfully", {
       page,
       limit,
       total,
@@ -52,101 +50,101 @@ export const getAllRecords = async (req, res) => {
 };
 
 
-// Get skills by ID
+// Get states by ID
 export const getRecordById = async (req, res) => {
   const { id } = req.params;
   if (!id || isNaN(id)) {
-    return errorResponse(res, "Invalid skills ID", 400);
+    return errorResponse(res, "Invalid states ID", 400);
   }
 
   try {
-    const [result] = await runQuery("SELECT * FROM skills WHERE id = ?", [id]);
+    const [result] = await runQuery("SELECT * FROM users_packages WHERE id = ?", [id]);
     if (!result.length) {
-      return errorResponse(res, "skills not found", 404);
+      return errorResponse(res, "states not found", 404);
     }
 
-    return successResponse(res, "skills fetched successfully", result[0]);
+    return successResponse(res, "states fetched successfully", result[0]);
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }
 };
 
-// Create a new skills
+// Create a new states
 export const createRecord = async (req, res) => {
-  const { name, description } = req.body || {}; 
+  const { name, status } = req.body || {}; 
   console.log('req.body', req.body)
   if (!name) {
-    return errorResponse(res, "skills name is required", 400);
+    return errorResponse(res, "states name is required", 400);
   }
 
-  const [existing] = await runQuery("SELECT * FROM skills WHERE name = ?", [name]);
+  const [existing] = await runQuery("SELECT * FROM users_packages WHERE name = ?", [name]);
   if (existing.length > 0) { 
-    return errorResponse(res, "skills Already Exist", 409);
+    return errorResponse(res, "states Already Exist", 409);
   }
 
   try {
     const [result] = await runQuery(
-      `INSERT INTO skills (name, description) VALUES (?, ?)`,
-      [name, description || null]
+      `INSERT INTO users_packages (name, status) VALUES (?, ?)`,
+      [name, status || null]
     );
 
-    return successResponse(res, "skills created successfully", { id: result.insertId, name: name });
+    return successResponse(res, "states created successfully", { id: result.insertId, name: name });
   } catch (err) {
-    console.error("Error creating skills:", err);
-    return errorResponse(res, "Error creating skills", 500);
+    console.error("Error creating states:", err);
+    return errorResponse(res, "Error creating states", 500);
   }
 };
 
-// Update skills by ID
+// Update states by ID
 export const updateRecord = async (req, res) => {
   const { id } = req.params;
-  const { name, description } = req.body || {}; 
+  const { name, status } = req.body || {}; 
   console.log('req.body', req.body)
 
   if (!id || isNaN(id)) {
-    return errorResponse(res, "Invalid skills ID", 400);
+    return errorResponse(res, "Invalid states ID", 400);
   }
   if (!name) {
-    return errorResponse(res, "skills name is required", 400);
+    return errorResponse(res, "states name is required", 400);
   }
 
   try {
-    const [existing] = await runQuery("SELECT * FROM skills WHERE id = ?", [id]);
+    const [existing] = await runQuery("SELECT * FROM users_packages WHERE id = ?", [id]);
     if (!existing.length) {
-      return errorResponse(res, "skills not found", 404);
+      return errorResponse(res, "states not found", 404);
     }
 
     const [result] = await runQuery(
-      `UPDATE skills 
-       SET name = ?, description = ?, updated_at = NOW()
+      `UPDATE users_packages 
+       SET name = ?, status = ?, updated_at = NOW()
        WHERE id = ?`,
-      [name || existing[0].name, description || existing[0].description, id]
+      [name || existing[0].name, status || existing[0].status, id]
     );
 
     if (result.affectedRows === 0) {
-      return errorResponse(res, "No changes made to the skills", 400);
+      return errorResponse(res, "No changes made to the states", 400);
     }
 
-    return successResponse(res, "skills updated successfully", { id: id, name: name, description:description });
+    return successResponse(res, "states updated successfully", { id: id, name: name, status:status });
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }
 };
 
-// Delete skills by ID
+// Delete states by ID
 export const deleteRecord = async (req, res) => {
   const { id } = req.params;
   if (!id || isNaN(id)) {
-    return errorResponse(res, "Invalid skills ID", 400);
+    return errorResponse(res, "Invalid states ID", 400);
   }
 
   try {
-    const [result] = await runQuery("DELETE FROM skills WHERE id = ?", [id]);
+    const [result] = await runQuery("DELETE FROM users_packages WHERE id = ?", [id]);
     if (result.affectedRows === 0) {
-      return errorResponse(res, "skills not found", 404);
+      return errorResponse(res, "states not found", 404);
     }
 
-    return successResponse(res, "skills deleted successfully");
+    return successResponse(res, "states deleted successfully");
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }

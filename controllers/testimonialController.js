@@ -1,7 +1,10 @@
-import connectDB from "../config/mdb.js";
-import { runQuery, successResponse, errorResponse } from "../utils/commonFunctions.js";
+import {
+  runQuery,
+  successResponse,
+  errorResponse,
+} from "../utils/commonFunctions.js";
 
-// Get all categories
+// Get all products
 export const getAllRecords = async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
@@ -11,39 +14,52 @@ export const getAllRecords = async (req, res) => {
 
     const filters = {
       name: trimOrNull(req.query.name),
+      price: trimOrNull(req.query.price),
+      category_id: req.query.category_id
+        ? parseInt(req.query.category_id, 10)
+        : null,
     };
 
     const whereClauses = [];
     const params = [];
 
     if (filters.name) {
-      whereClauses.push("name LIKE ?");
+      whereClauses.push("testimonial.name LIKE ?");
       params.push(`%${filters.name}%`);
     }
 
-    const whereClause = whereClauses.length ? "WHERE " + whereClauses.join(" AND ") : "";
+    const whereClause = whereClauses.length
+      ? "WHERE " + whereClauses.join(" AND ")
+      : "";
 
-    const sqlQuery = `
-      SELECT id, name, description, created_at, updated_at
-      FROM categories
-      ${whereClause}
-      ORDER BY id DESC
-      LIMIT ? OFFSET ?;
-    `;
+    const sqlQuery = `SELECT * FROM testimonial ${whereClause} ORDER BY id DESC LIMIT ? OFFSET ?`;
 
     const [results] = await runQuery(sqlQuery, [...params, limit, offset]);
+    const records = Array.isArray(results) ? results : [];
 
-    const countQuery = `SELECT COUNT(*) AS total FROM categories ${whereClause}`;
+     // Corrected COUNT query with JOIN
+    const countQuery = `
+      SELECT COUNT(*) AS total  FROM testimonial ${whereClause}`;
+
     const countResult = await runQuery(countQuery, params);
-    const countRow = Array.isArray(countResult[0]) ? countResult[0][0] : countResult[0];
+    const countRow = Array.isArray(countResult[0])
+      ? countResult[0][0]
+      : countResult[0];
     const total = countRow?.total || 0;
 
-    return successResponse(res, "Categories fetched successfully", {
+    const baseImageUrl = process.env.IMAGE_BASE_URL;
+
+    const responseData = records.map((record) => ({
+      ...record,
+      image: record.image ? `${baseImageUrl}testimonial/${record.image}` : null,
+    }));
+
+    return successResponse(res, "testimonial fetched successfully", {
       page,
       limit,
       total,
       totalPages: Math.ceil(total / limit),
-      results,
+      responseData,
     });
   } catch (err) {
     console.error(err);
@@ -51,119 +67,149 @@ export const getAllRecords = async (req, res) => {
   }
 };
 
-
-export const getRecords = async (req, res) => {
-  try {
-      const db = await connectDB();
-      // const collection = await db.createCollection("users");
-      const result = await db.collection("users").find().toArray();
-    // const [result] = await runQuery("SELECT * FROM categories WHERE id = ?", [id]);
-    console.log('result', result)
-    if (!result.length) {
-      return errorResponse(res, "Category not found", 404);
-    }
-
-    return successResponse(res, "Category fetched successfully", result[0]);
-  } catch (err) {
-    return errorResponse(res, err.message, 500);
-  }
-};
-
-// Get category by ID
+// Get product by ID
 export const getRecordById = async (req, res) => {
   const { id } = req.params;
+
   if (!id || isNaN(id)) {
-    return errorResponse(res, "Invalid category ID", 400);
+    return errorResponse(res, "Invalid product ID", 400);
   }
 
   try {
-    const [result] = await runQuery("SELECT * FROM categories WHERE id = ?", [id]);
+    const [result] = await runQuery("SELECT * FROM banners WHERE id = ?", [
+      id,
+    ]);
+
     if (!result.length) {
-      return errorResponse(res, "Category not found", 404);
+      return errorResponse(res, "Product not found", 404);
     }
 
-    return successResponse(res, "Category fetched successfully", result[0]);
+    const baseImageUrl = process.env.IMAGE_BASE_URL;
+    const product = result[0];
+    const responseData = {
+      ...product,
+      image: product.image ? `${baseImageUrl}banners/${product.image}` : null,
+    };
+    return successResponse(res, "Product fetched successfully", responseData);
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }
 };
 
-// Create a new category
+// Create a new product
 export const createRecord = async (req, res) => {
-  const { name, description } = req.body || {}; 
-  console.log('req.body', req.body)
-  if (!name) {
-    return errorResponse(res, "Category name is required", 400);
+  const { category_id, name, description, price, discount_price, qty } =
+    req.body;
+
+  const image = req.file ? req.file.filename : null;
+
+  if (!name || !price || !category_id) {
+    return errorResponse(res, "Category ID, name, and price are required", 400);
   }
 
-  const [existing] = await runQuery("SELECT * FROM categories WHERE name = ?", [name]);
-  if (existing.length > 0) { 
-    return errorResponse(res, "Category Already Exist", 409);
+  const [existing] = await runQuery("SELECT * FROM banners WHERE name = ?", [
+    name,
+  ]);
+  if (existing.length > 0) {
+    return errorResponse(res, "Product Already Exist", 409);
   }
 
   try {
     const [result] = await runQuery(
-      `INSERT INTO categories (name, description) VALUES (?, ?)`,
-      [name, description || null]
+      `INSERT INTO banners 
+       (category_id, name, description, price, discount_price, qty, image)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        category_id,
+        name,
+        description || null,
+        price,
+        discount_price || 0,
+        qty || 0,
+        image || null,
+      ]
     );
 
-    return successResponse(res, "Category created successfully", { id: result.insertId, name: name });
+    return successResponse(res, "banners created successfully", {
+      id: result.insertId,
+      name: name,
+      price: price,
+    });
   } catch (err) {
-    console.error("Error creating category:", err);
-    return errorResponse(res, "Error creating category", 500);
+    console.error("Error creating banners:", err);
+    return errorResponse(res, "Error creating banners", 500);
   }
 };
 
-// Update category by ID
+// Update banners by ID
 export const updateRecord = async (req, res) => {
   const { id } = req.params;
-  const { name, description } = req.body || {}; 
-  console.log('req.body', req.body)
+  const { category_id, name, description, price, discount_price, qty } =
+    req.body || {};
+  const image = req.file ? req.file.filename : null;
 
   if (!id || isNaN(id)) {
-    return errorResponse(res, "Invalid category ID", 400);
-  }
-  if (!name) {
-    return errorResponse(res, "Category name is required", 400);
+    return errorResponse(res, "Invalid banners ID", 400);
   }
 
   try {
-    const [existing] = await runQuery("SELECT * FROM categories WHERE id = ?", [id]);
+    const [existing] = await runQuery("SELECT * FROM bannerss WHERE id = ?", [
+      id,
+    ]);
     if (!existing.length) {
-      return errorResponse(res, "Category not found", 404);
+      return errorResponse(res, "banners not found", 404);
     }
 
     const [result] = await runQuery(
-      `UPDATE categories 
-       SET name = ?, description = ?, updated_at = NOW()
-       WHERE id = ?`,
-      [name || existing[0].name, description || existing[0].description, id]
+      `UPDATE bannerss SET 
+        category_id = ?, 
+        name = ?, 
+        description = ?, 
+        price = ?, 
+        discount_price = ?, 
+        qty = ?, 
+        image = COALESCE(?, image), 
+        updated_at = NOW()
+      WHERE id = ?`,
+      [
+        category_id,
+        name,
+        description || null,
+        price,
+        discount_price || 0,
+        qty || 0,
+        image,
+        id,
+      ]
     );
 
     if (result.affectedRows === 0) {
-      return errorResponse(res, "No changes made to the category", 400);
+      return errorResponse(res, "No changes made to the banners", 400);
     }
-
-    return successResponse(res, "Category updated successfully", { id: id, name: name, description:description });
+    return successResponse(res, "banners updated successfully", {
+      id: id,
+      name: name,
+      price: price,
+    });
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }
 };
 
-// Delete category by ID
+// Delete product by ID
 export const deleteRecord = async (req, res) => {
   const { id } = req.params;
   if (!id || isNaN(id)) {
-    return errorResponse(res, "Invalid category ID", 400);
+    return errorResponse(res, "Invalid product ID", 400);
   }
 
   try {
-    const [result] = await runQuery("DELETE FROM categories WHERE id = ?", [id]);
+    const [result] = await runQuery("DELETE FROM banners WHERE id = ?", [id]);
     if (result.affectedRows === 0) {
-      return errorResponse(res, "Category not found", 404);
+      return errorResponse(res, "Product not found", 404);
     }
 
-    return successResponse(res, "Category deleted successfully");
+    return successResponse(res, "Product deleted successfully");
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }
